@@ -44,22 +44,74 @@ class Bot {
         console.log("\nChanging Chances");
         console.log(this.moveMap);
         let oldChance = this.moveMap.get(changedMove);
+        if (newChance < 0) newChance = 0;
         let dChance = newChance - oldChance;
 
         this.moveMap.set(changedMove, newChance);
 
-        let newDenom = 1 + dChance; //Calculate denominator to divide other chances by
+        let newTotal = Array.from(this.moveMap.values()).reduce(
+            (accumulator, currentValue) => accumulator + currentValue,
+            0,
+        );
+
 
         for (let move of this.moveMap.keys()) {
-            if (move != changedMove) {
-                this.moveMap.set(move, this.moveMap.get(move) / newDenom); // Adjust chance proportionally based on new denominator
-            }
+            let adjustedChance = this.moveMap.get(move) / newTotal;
+            this.moveMap.set(move,adjustedChance);
         }
 
 
         console.log(this.moveMap);
         console.log("\n");
     }
+
+    private checkDynamite() {
+        this.dynRem--;
+        if (this.dynRem <= 0) {
+            this.haveDyn = false;
+            this.setMoveChance("D",0);
+        }
+    }
+
+    private checkEnemDynamite() {
+        this.enemDynRem--;
+        if (this.enemDynRem <= 0) {
+            this.enemHasDyn = false;
+            this.setMoveChance("W",0);
+        }
+    }
+
+    private adjustForPastMove(prevRound : Round) {
+
+        let myMove = prevRound.p1;
+        let moveChance = this.moveMap.get(myMove);
+
+        let winner = this.getWinner(prevRound);
+        console.log(winner);
+        if (winner == 1 && moveChance < 0.95) this.setMoveChance(myMove, moveChance + 0.05);
+        else if (winner == -1) this.setMoveChance(myMove, moveChance - 0.05);
+    }
+
+    private getWinner(prevRound : Round) : number {
+        let enemMove = prevRound.p2;
+        let myMove = prevRound.p1;
+
+        if (enemMove == myMove) return 0;
+
+        switch (myMove) {
+            case "D":
+                return enemMove == "W" ? -1 : 1;
+            case "R":
+                return (enemMove == "D" || enemMove == "P") ? -1 : 1;
+            case "P":
+                return (enemMove == "D" || enemMove == "S") ? -1 : 1;
+            case "S":
+                return (enemMove == "D" || enemMove == "R") ? -1 : 1;
+            case "W":
+                return (enemMove != "D") ? -1 : 1;
+        }
+    }
+
 
     makeMove(gamestate: Gamestate): BotSelection {
         let prevRound = gamestate.rounds[gamestate.rounds.length - 1];
@@ -73,12 +125,11 @@ class Bot {
                 }
             }
 
-            if (prevRound.p1 == "D") {
-                this.dynRem--;
-                if (this.dynRem <= 0) {
-                    this.setMoveChance("D",0);
-                }
-            }
+            this.updateStakes(prevRound);
+
+            this.adjustTempModifiers(prevRound);
+
+            this.adjustForPastMove(prevRound);
         }
 
         let move = this.getRandomMove();
