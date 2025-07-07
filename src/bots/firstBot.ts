@@ -1,43 +1,54 @@
 import { Gamestate, BotSelection } from '../models/gamestate';
 
+type Round = {
+    p1: BotSelection,
+    p2: BotSelection,
+}
+
+
+type HighStakesChoice = "RPS" | "D" | "W";
+
 class Bot {
 
     private enemDynRem : number;
+    private enemHasDyn : boolean;
+
     private dynRem : number;
+    private haveDyn : boolean;
+
+    private currentStakes : number;
 
     private moveMap : Map<BotSelection, number>;
+    private highStakesMoves : Map<HighStakesChoice, number>;
+
+    private highStakesBoundary : number;
 
     public constructor() {
         this.enemDynRem = 100;
         this.enemHasDyn = true;
 
         this.dynRem = 100;
+        this.haveDyn = true;
+
+        this.currentStakes = 1;
+        this.highStakesBoundary = 2;
 
         this.moveMap = new Map();
 
-        this.moveMap.set("D",0.2);
-        this.moveMap.set("R",0.2);
-        this.moveMap.set("P",0.2);
-        this.moveMap.set("S",0.2);
-        this.moveMap.set("W",0.2);
+        this.moveMap.set("D",1);
+        this.moveMap.set("R",5);
+        this.moveMap.set("P",5);
+        this.moveMap.set("S",5);
+        this.moveMap.set("W",1);
+
+        this.highStakesMoves = new Map();
+        this.highStakesMoves.set("D",3);
+        this.highStakesMoves.set("RPS", 2);
+        this.highStakesMoves.set("W",1);
 
     }
 
-    private getRandomMove() : BotSelection {
-        let random = Math.random();
-        let moveIndex = 0;
-        let keys = Array.from(this.moveMap.keys());
 
-        let move : BotSelection = "D";
-        console.log("");
-        console.log(random);
-        while (random > 0) {
-            move = keys[moveIndex];
-            console.log(move);
-            random -= this.moveMap.get(keys[moveIndex]);
-            console.log(random);
-            moveIndex++;
-        }
 
     private adjustMoveChance(changedMove : BotSelection, increment : number) : void {
         if (increment == 0) return;
@@ -213,6 +224,7 @@ class Bot {
     }
 
     makeMove(gamestate: Gamestate): BotSelection {
+        if (!this.haveDyn) return "P"; //brute force fix dynamite issue
         let prevRound = gamestate.rounds[gamestate.rounds.length - 1];
 
         if (prevRound != undefined) {
