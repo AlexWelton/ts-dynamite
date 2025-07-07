@@ -52,8 +52,8 @@ class Bot {
 
     private adjustMoveChance(changedMove : BotSelection, increment : number) : void {
         if (increment == 0) return;
-        //console.log.log("\nChanging Chances");
-        //console.log.log(this.moveMap);
+        //console.log("\nChanging Chances");
+        //console.log(this.moveMap);
         if (increment < 0) {
             for (let [otherMove, chance] of this.moveMap.entries()) {
                 let total = this.getMapTotal(this.moveMap);
@@ -67,8 +67,8 @@ class Bot {
             this.moveMap.set(changedMove, this.moveMap.get(changedMove) + increment);
         }
 
-        //console.log.log(this.moveMap);
-        //console.log.log("\n");
+        //console.log(this.moveMap);
+        //console.log("\n");
     }
 
     private checkDynamite() {
@@ -93,7 +93,6 @@ class Bot {
 
         let myMove = prevRound.p1;
         let enemMove = prevRound.p2;
-        let moveChance = this.moveMap.get(myMove);
 
         let winner = this.getWinner(prevRound);
 
@@ -114,9 +113,6 @@ class Bot {
                 this.adjustMoveChance("D", -2);
                 break;
         }
-
-        if (winner == 1 && moveChance < 0.95) this.adjustMoveChance(myMove, 1);
-        else if (winner == -1) this.adjustMoveChance(myMove, -1);
     }
 
     private getWinner(prevRound : Round) : number {
@@ -154,20 +150,20 @@ class Bot {
     }
 
     private getRandomChoiceFromMap(map : Map<any, number>) : any {
-        //console.log.log(map);
+        //console.log(map);
         let total = this.getMapTotal(map);
         let random = Math.floor(Math.random() * (total-1)) + 1;
         let index = 0;
         let keys = Array.from(map.keys());
 
         let choice = undefined;
-        //console.log.log("");
-        //console.log.log(random);
+        //console.log("");
+        //console.log(random);
         do {
             choice = keys[index];
-            //console.log.log(choice);
+            //console.log(choice);
             random -= map.get(keys[index]);
-            //console.log.log(random);
+            //console.log(random);
             index++;
         }
         while (random > 0);
@@ -189,7 +185,6 @@ class Bot {
     private updateHighStakesChoices(prevRound: Round) {
         let enemMove = prevRound.p1;
         let winner = this.getWinner(prevRound);
-
         switch(enemMove) {
             case "D":
                 if (winner == -1) {
@@ -216,25 +211,25 @@ class Bot {
     }
 
     private getHighStakesMove() {
-        //console.log.log("High Stakes Move");
         let move : HighStakesChoice = this.getRandomChoiceFromMap(this.highStakesMoves);
-        //console.log.log(move);
+        //console.log(move);
         if (move == "RPS") return this.getRPSMove();
         else return move;
     }
 
     makeMove(gamestate: Gamestate): BotSelection {
-        if (!this.haveDyn) return "P"; //brute force fix dynamite issue
+        //console.log("\n\n NEW MOVE");
         let prevRound = gamestate.rounds[gamestate.rounds.length - 1];
 
         if (prevRound != undefined) {
-            //console.log.log (prevRound.p1 + " - " + prevRound.p2);
-            //console.log.log(this.dynRem);
-            //console.log.log(this.haveDyn);
+            //console.log (prevRound.p1 + " - " + prevRound.p2);
+
             if (prevRound.p2 == "D") this.checkEnemDynamite();
             if (prevRound.p1 == "D") this.checkDynamite();
 
-            if (this.currentStakes > this.highStakesBoundary) this.updateHighStakesChoices(prevRound);
+            //console.log(this.haveDyn);
+
+            if (this.currentStakes >= this.highStakesBoundary) this.updateHighStakesChoices(prevRound);
 
             this.updateStakes(prevRound);
 
@@ -245,7 +240,7 @@ class Bot {
 
         let move = this.currentStakes >= this.highStakesBoundary ? this.getHighStakesMove() : this.getRandomMove();
 
-        //console.log.log(move);
+        //console.log(move);
         return move;
     }
 }
