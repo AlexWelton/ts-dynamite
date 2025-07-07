@@ -9,6 +9,8 @@ class Bot {
 
     public constructor() {
         this.enemDynRem = 100;
+        this.enemHasDyn = true;
+
         this.dynRem = 100;
 
         this.moveMap = new Map();
@@ -37,39 +39,33 @@ class Bot {
             moveIndex++;
         }
 
-        return move;
-    }
-
-    private setMoveChance(changedMove : BotSelection, newChance : number) : void {
-        console.log("\nChanging Chances");
-        console.log(this.moveMap);
-        let oldChance = this.moveMap.get(changedMove);
-        if (newChance < 0) newChance = 0;
-        let dChance = newChance - oldChance;
-
-        this.moveMap.set(changedMove, newChance);
-
-        let newTotal = Array.from(this.moveMap.values()).reduce(
-            (accumulator, currentValue) => accumulator + currentValue,
-            0,
-        );
-
-
-        for (let move of this.moveMap.keys()) {
-            let adjustedChance = this.moveMap.get(move) / newTotal;
-            this.moveMap.set(move,adjustedChance);
+    private adjustMoveChance(changedMove : BotSelection, increment : number) : void {
+        if (increment == 0) return;
+        //console.log.log("\nChanging Chances");
+        //console.log.log(this.moveMap);
+        if (increment < 0) {
+            for (let [otherMove, chance] of this.moveMap.entries()) {
+                let total = this.getMapTotal(this.moveMap);
+                if (otherMove != changedMove && (otherMove != "D" || this.haveDyn)) {
+                    let weightedIncrement = Math.round((this.moveMap.get(otherMove) / total) * increment * -1);
+                    this.moveMap.set(otherMove, chance + weightedIncrement);
+                }
+            }
+        }
+        else {
+            this.moveMap.set(changedMove, this.moveMap.get(changedMove) + increment);
         }
 
-
-        console.log(this.moveMap);
-        console.log("\n");
+        //console.log.log(this.moveMap);
+        //console.log.log("\n");
     }
 
     private checkDynamite() {
         this.dynRem--;
         if (this.dynRem <= 0) {
             this.haveDyn = false;
-            this.setMoveChance("D",0);
+            this.moveMap.set("D", 0);
+            this.highStakesMoves.set("D",0);
         }
     }
 
@@ -77,19 +73,39 @@ class Bot {
         this.enemDynRem--;
         if (this.enemDynRem <= 0) {
             this.enemHasDyn = false;
-            this.setMoveChance("W",0);
+            this.moveMap.set("W", 0);
+            this.highStakesMoves.set("W",0);
         }
     }
 
     private adjustForPastMove(prevRound : Round) {
 
         let myMove = prevRound.p1;
+        let enemMove = prevRound.p2;
         let moveChance = this.moveMap.get(myMove);
 
         let winner = this.getWinner(prevRound);
-        console.log(winner);
-        if (winner == 1 && moveChance < 0.95) this.setMoveChance(myMove, moveChance + 0.05);
-        else if (winner == -1) this.setMoveChance(myMove, moveChance - 0.05);
+
+        switch(enemMove) {
+            case "D":
+                if (winner == -1) this.adjustMoveChance("W", 1);
+                break;
+            case "R":
+                if (winner == -1) this.adjustMoveChance("P", 1);
+                break;
+            case "P":
+                if (winner == -1) this.adjustMoveChance("S", 1);
+                break;
+            case "S":
+                if (winner == -1) this.adjustMoveChance("R", 1);
+                break;
+            case "W":
+                this.adjustMoveChance("D", -2);
+                break;
+        }
+
+        if (winner == 1 && moveChance < 0.95) this.adjustMoveChance(myMove, 1);
+        else if (winner == -1) this.adjustMoveChance(myMove, -1);
     }
 
     private getWinner(prevRound : Round) : number {
@@ -112,28 +128,112 @@ class Bot {
         }
     }
 
+    private updateStakes(prevRound : Round) {
+        let wasDraw = this.getWinner(prevRound) == 0;
+
+        if (wasDraw) this.currentStakes++;
+        else this.currentStakes = 1;
+    }
+
+    private getMapTotal(map: Map<any,number>) {
+        return Array.from(map.values()).reduce(
+            (accumulator, currentValue) => accumulator + currentValue,
+            0,
+        );
+    }
+
+    private getRandomChoiceFromMap(map : Map<any, number>) : any {
+        //console.log.log(map);
+        let total = this.getMapTotal(map);
+        let random = Math.floor(Math.random() * (total-1)) + 1;
+        let index = 0;
+        let keys = Array.from(map.keys());
+
+        let choice = undefined;
+        //console.log.log("");
+        //console.log.log(random);
+        do {
+            choice = keys[index];
+            //console.log.log(choice);
+            random -= map.get(keys[index]);
+            //console.log.log(random);
+            index++;
+        }
+        while (random > 0);
+
+        return choice;
+    }
+
+    private getRPSMove() {
+        let rpsMap = new Map(this.moveMap);
+        rpsMap.set("D", 0);
+        rpsMap.set("W", 0);
+        return this.getRandomChoiceFromMap(rpsMap);
+    }
+
+    private getRandomMove() : BotSelection {
+        return this.getRandomChoiceFromMap(this.moveMap);
+    }
+
+    private updateHighStakesChoices(prevRound: Round) {
+        let enemMove = prevRound.p1;
+        let winner = this.getWinner(prevRound);
+
+        switch(enemMove) {
+            case "D":
+                if (winner == -1) {
+                    if (this.enemHasDyn) this.highStakesMoves.set("W", this.highStakesMoves.get("W") + 2);
+                    this.highStakesMoves.set("RPS", Math.max(0,this.highStakesMoves.get("RPS") - 1));
+                }
+                break;
+            case "R":
+            case "P":
+            case "S":
+                if (winner == -1) {
+                    if (this.haveDyn) this.highStakesMoves.set("D", this.highStakesMoves.get("D") + 1);
+                    this.highStakesMoves.set("W", Math.max(0,this.highStakesMoves.get("W") - 1));
+                }
+                break;
+            case "W":
+                if (winner == -1) {
+                    this.highStakesMoves.set("RPS", this.highStakesMoves.get("RPS") + 1);
+                    this.highStakesMoves.set("D", Math.max(0,this.highStakesMoves.get("D") - 1));
+                }
+                break;
+        }
+
+    }
+
+    private getHighStakesMove() {
+        //console.log.log("High Stakes Move");
+        let move : HighStakesChoice = this.getRandomChoiceFromMap(this.highStakesMoves);
+        //console.log.log(move);
+        if (move == "RPS") return this.getRPSMove();
+        else return move;
+    }
 
     makeMove(gamestate: Gamestate): BotSelection {
         let prevRound = gamestate.rounds[gamestate.rounds.length - 1];
 
         if (prevRound != undefined) {
-            console.log (prevRound.p1 + " - " + prevRound.p2);
-            if (prevRound.p2 == "D") {
-                this.enemDynRem--;
-                if (this.enemDynRem <= 0) {
-                    this.setMoveChance("W",0);
-                }
-            }
+            //console.log.log (prevRound.p1 + " - " + prevRound.p2);
+            //console.log.log(this.dynRem);
+            //console.log.log(this.haveDyn);
+            if (prevRound.p2 == "D") this.checkEnemDynamite();
+            if (prevRound.p1 == "D") this.checkDynamite();
+
+            if (this.currentStakes > this.highStakesBoundary) this.updateHighStakesChoices(prevRound);
 
             this.updateStakes(prevRound);
 
-            this.adjustTempModifiers(prevRound);
 
             this.adjustForPastMove(prevRound);
+
         }
 
-        let move = this.getRandomMove();
+        let move = this.currentStakes >= this.highStakesBoundary ? this.getHighStakesMove() : this.getRandomMove();
 
+        //console.log.log(move);
         return move;
     }
 }
